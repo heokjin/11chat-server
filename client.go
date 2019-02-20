@@ -54,6 +54,7 @@ type Client struct {
 // reads from this goroutine.
 func (c *Client) readPump() {
 	defer func() {
+		log.Debugf("Cient Read close: %v\n", c)
 		c.hub.unregister <- c
 		c.conn.Close()
 	}()
@@ -69,6 +70,7 @@ func (c *Client) readPump() {
 			break
 		}
 		message = bytes.TrimSpace(bytes.Replace(message, newline, space, -1))
+		log.Debugf("Msg: %s\n", message)
 		c.hub.broadcast <- message
 	}
 }
@@ -81,6 +83,7 @@ func (c *Client) readPump() {
 func (c *Client) writePump() {
 	ticker := time.NewTicker(pingPeriod)
 	defer func() {
+		log.Debugf("Cient Write close: %v\n", c)
 		ticker.Stop()
 		c.conn.Close()
 	}()

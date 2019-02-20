@@ -33,13 +33,16 @@ func (h *Hub) run() {
 	for {
 		select {
 		case client := <-h.register:
+			log.Debugf("Register: %v\n", client)
 			h.clients[client] = true
 		case client := <-h.unregister:
+			log.Debug("UnRegister")
 			if _, ok := h.clients[client]; ok {
 				delete(h.clients, client)
 				close(client.send)
 			}
 		case message := <-h.broadcast:
+			log.Debug("Broadcast")
 			for client := range h.clients {
 				select {
 				case client.send <- message:
