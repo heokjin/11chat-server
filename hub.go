@@ -4,11 +4,23 @@
 
 package main
 
+import (
+	"encoding/json"
+)
+
+type MsgProto struct {
+	Sender   string `json:"S,omitempty"` //보내는사람
+	Receiver string `json:"R,omitempty"` //받는사람
+	Text     string `json:"T,omitempty"` //내용
+}
+
 // Hub maintains the set of active clients and broadcasts messages to the
 // clients.
 type Hub struct {
+	totalChatMap map[string]*Client
+
 	// Registered clients.
-	clients map[*Client]bool
+	// clients map[*Client]bool
 
 	// Inbound messages from the clients.
 	broadcast chan []byte
@@ -22,10 +34,10 @@ type Hub struct {
 
 func newHub() *Hub {
 	return &Hub{
-		broadcast:  make(chan []byte),
-		register:   make(chan *Client),
-		unregister: make(chan *Client),
-		clients:    make(map[*Client]bool),
+		broadcast:    make(chan []byte),
+		register:     make(chan *Client),
+		unregister:   make(chan *Client),
+		totalChatMap: make(map[string]*Client),
 	}
 }
 
@@ -33,23 +45,26 @@ func (h *Hub) run() {
 	for {
 		select {
 		case client := <-h.register:
-			log.Debugf("Register: %v\n", client)
-			h.clients[client] = true
+			log.Debugf("Register: %s\n", client.id)
+			h.totalChatMap[client.id] = client
 		case client := <-h.unregister:
-			log.Debug("UnRegister")
-			if _, ok := h.clients[client]; ok {
-				delete(h.clients, client)
+			log.Debugf("UnRegister: %s\n", client.id)
+			if _, ok := h.totalChatMap[client.id]; ok {
+				delete(h.totalChatMap, client.id)
 				close(client.send)
 			}
 		case message := <-h.broadcast:
-			log.Debug("Broadcast")
-			for client := range h.clients {
-				select {
-				case client.send <- message:
-				default:
-					close(client.send)
-					delete(h.clients, client)
-				}
+			msgProto := MsgProto{}
+			err := json.Unmarshal(message, &msgProto)
+			if err != nil {
+				log.Errorf("brodcast err: %s\n", err)
+				return
+			}
+
+			log.Debug("Broadcast to %s\n", msgProto.Receiver)
+			if _, ok := h.totalChatMap[msgProto.Receiver]; ok {
+				client := h.totalChatMap[msgProto.Receiver]
+				client.send <- []byte(msgProto.Text)
 			}
 		}
 	}
